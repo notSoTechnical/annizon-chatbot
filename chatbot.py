@@ -19,8 +19,9 @@ def answer(question):
     )
     return resp.choices[0].message.content
 
-while True:
-    q = input("You: ")
-    if q == "quit":
-        break
-    print("Bot:", answer(q))
+if __name__ == "__main__":
+    while True:
+        q = input("You: ")
+        if q == "quit":
+            break
+        print("Bot:", answer(q))
