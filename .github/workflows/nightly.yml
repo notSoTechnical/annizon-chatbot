@@ -1,0 +1,27 @@
+name: Nightly chatbot tests
+
+on:
+  schedule:
+    - cron: "0 6 * * *"   # 2 AM ET every night
+  workflow_dispatch:       # allow manual "Run workflow" clicks
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt pytest
+
+      - name: Re-ingest policies (verifies store pages are up)
+        run: python ingest.py
+
+      - name: Run tests
+        run: pytest tests/ -v
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
