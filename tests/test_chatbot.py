@@ -28,13 +28,12 @@ def test_retrieval_finds_refund():
 
 @pytest.mark.skipif(not os.getenv("GEMINI_API_KEY"), reason="needs GEMINI_API_KEY")
 def test_retrieval_finds_shipping():
-    """Known weakness: keyword overlap misses 'shipped' vs 'shipping'."""
-    from retrieval import find_relevant
+    """Embedding retrieval understands shipping/shipped (keyword search couldn't)."""
+from retrieval import find_relevant
     top = find_relevant("how long does shipping take", top_k=3)
     sources = [c["source"] for c in top]
     assert "shipping" in sources, f"shipping not in top 3: {sources}"
-
-
+    
 @pytest.mark.skipif(not os.getenv("GEMINI_API_KEY"), reason="needs GEMINI_API_KEY")
 def test_answer_uses_real_policy():
     """End-to-end: the bot answers from the actual return policy."""
