@@ -4,13 +4,15 @@ import streamlit as st
 import requests
 from openai import OpenAI
 from retrieval import find_relevant
+from triage import categorize
 
 client = OpenAI(
     api_key=os.environ["GEMINI_API_KEY"],
     base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
 )
 
-SUPPORT_EMAIL = "info@annizon.com"
+# NOTE: the destination inbox now comes from triage.py (TEAMS + USE_TEAM_INBOXES),
+# so there is no hardcoded SUPPORT_EMAIL here anymore.
 
 
 def answer(question):
@@ -27,8 +29,9 @@ def answer(question):
 
 
 def send_to_support(user_email, issue):
-    """Email the customer's question to info@annizon.com via Resend.
+    """Email the customer's question to the right team via Resend.
 
+    AI triage (triage.py) picks the team; Resend delivers it.
     Needs RESEND_API_KEY in Streamlit Secrets, and the sending
     domain (annizon.com) verified in the Resend dashboard.
     """
@@ -41,15 +44,16 @@ def send_to_support(user_email, issue):
         return False, "That email address doesn't look valid."
     if not issue:
         return False, "Please describe your question first."
+    team_email, category = categorize(issue, client)  # AI triage: which team?
     try:
         resp = requests.post(
             "https://api.resend.com/emails",
             headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
             json={
                 "from": "Annizon Support <support@annizon.com>",
-                "to": [SUPPORT_EMAIL],
+                "to": [team_email],
                 "reply_to": user_email,
-                "subject": f"Customer question from {user_email}",
+                "subject": f"[{category}] Customer question from {user_email}",
                 "text": f"From: {user_email}\n\n{issue}",
             },
             timeout=20,
@@ -58,7 +62,7 @@ def send_to_support(user_email, issue):
         return False, "Couldn't reach the email service — please try again later."
     if resp.status_code >= 400:
         return False, "The message couldn't be sent — please try again later."
-    return True, "Sent! We'll reply to your email soon."
+    return True, f"Sent to our {category} team! We'll reply to your email soon."
 
 
 st.title("Annizon 客服")
