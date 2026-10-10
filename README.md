@@ -1,4 +1,4 @@
-# Annizon Chatbot 🤖
+# Annizon Chatbot 🤖 try on annizon.com
 
 A RAG (Retrieval-Augmented Generation) customer-service chatbot for Shopify stores.
 Ask it about return/shipping policies — it answers from your real store policies, never making things up.
