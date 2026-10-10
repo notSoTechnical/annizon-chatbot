@@ -26,7 +26,7 @@ def test_retrieval_finds_refund():
     assert top[0]["source"] == "refund", f"expected refund, got {top[0]['source']}"
 
 
-@pytest.mark.xfail(reason="keyword search can't match shipping/shipped — needs embeddings")
+@pytest.mark.skipif(not os.getenv("GEMINI_API_KEY"), reason="needs GEMINI_API_KEY")
 def test_retrieval_finds_shipping():
     """Known weakness: keyword overlap misses 'shipped' vs 'shipping'."""
     from retrieval import find_relevant
