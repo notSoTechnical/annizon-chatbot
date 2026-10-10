@@ -18,7 +18,7 @@ def test_chunks_exist():
     assert "refund" in sources, "refund policy missing"
     assert "shipping" in sources, "shipping policy missing"
 
-
+@pytest.mark.skipif(not os.getenv("GEMINI_API_KEY"), reason="needs GEMINI_API_KEY")
 def test_retrieval_finds_refund():
     """'return policy' question must surface refund chunks."""
     from retrieval import find_relevant
