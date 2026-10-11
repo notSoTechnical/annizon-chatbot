@@ -252,3 +252,15 @@ Notes:
 - `sentence-transformers` (~90MB model) installs in 1–3 minutes on a GitHub runner — fine for a nightly job. It stays OUT of `requirements.txt` because torch is too heavy for Streamlit's free tier (the deployed app).
 - A full chat model (Ollama / llama3.1, several GB) is too heavy for CI runners — that layer is covered by mocked tests instead.
 - Editing workflow files via API needs the `Workflows` permission on your GitHub token.
+
+### From scratch (what it really takes)
+
+The honest recipe, so you know what "training from scratch" actually means:
+
+1. **Data**: billions of text pairs (embeddings) or trillions of tokens (chat model). Collecting and cleaning data is most of the work.
+2. **Architecture**: BERT-style encoder for embeddings, GPT-style decoder for chat. Start from a known architecture — nobody invents a new one on the first try.
+3. **Hardware**: GPUs. Cost anchors: tiny BERT-size ≈ $1K–10K in cloud GPUs; 7B chat model ≈ $100K–1M+; frontier models ≈ $100M+.
+4. **Framework**: PyTorch + distributed training (DeepSpeed / FSDP) across many GPUs.
+5. **Evaluate**: MTEB leaderboard for embeddings; standard benchmarks for chat.
+
+**The $0 way to learn it**: train a *tiny* model from scratch on free Colab to learn the full loop — e.g. `nanoGPT` (a small GPT trainable in hours) or a tiny BERT on a small dataset. Same steps, toy scale. That is how you learn "how to train from scratch" without the $100K.
