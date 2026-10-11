@@ -166,3 +166,20 @@ In `theme.liquid`, before `</body>`:
 ## Security rule
 
 **Code goes to GitHub. Keys go to Secrets.** Never commit an API key.
+
+## RAG 小抄 (beginner's cheat sheet)
+
+**Chunk (小纸条)**: 政策原文太长，`ingest.py` 把它切成约 500 字一张的小纸条，存进 `chunks.json`。本站：4 个政策页面 → 77 张小纸条。
+
+**每张纸条是一个 dict**:
+```python
+{"source": "refund", "text": "30天内可退..."}
+```
+- `source` = 盖章：这张纸条从哪份政策上剪下来的 (`refund` / `shipping` / ...)
+- `text` = 纸条的内容
+- `c` = chunk 的缩写，循环里轮流代表每一张纸条：`[c["text"] for c in chunks]`
+
+**Vector (向量)**: 把一句话变成一串数字，这串数字代表它的意思。意思越像，两串数字越像。
+- 真数字是调 Google API 拿到的：`genai.embed_content(model="models/text-embedding-004", content="...")` → 返回 768 个数字
+- 768 是 Google 定的：这个模型出厂就是 768 维
+- 点积用来量"有多像"：点积越大，意思越接近，机器人就挑它来回答
