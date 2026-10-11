@@ -6,7 +6,8 @@ import requests
 from openai import OpenAI
 import retrieval
 from retrieval import CHUNKS_DIR, CHUNKS_PATH, find_relevant
-from triage import categorize
+from triage import classify_issue
+from store_config import get_store_config, resolve_team_email, save_store_config
 from crawler import crawl, chunk as chunk_text, slug, store_id_for_url
 
 client = OpenAI(
@@ -48,12 +49,12 @@ def answer(question, store_id="default", store_name="Annizon"):
     return resp.choices[0].message.content
 
 
-def send_to_support(user_email, issue):
+def send_to_support(user_email, issue, store_id="default"):
     """Email the customer's question to the right team via Resend.
 
-    AI triage (triage.py) picks the team; Resend delivers it.
-    Needs RESEND_API_KEY in Streamlit Secrets, and the sending
-    domain (annizon.com) verified in the Resend dashboard.
+    AI triage picks the category; store_config picks the inbox for
+    THIS store. Needs RESEND_API_KEY in Streamlit Secrets, and the
+    store's sending domain verified in the Resend dashboard.
     """
     api_key = os.environ.get("RESEND_API_KEY")
     if not api_key:
@@ -64,13 +65,15 @@ def send_to_support(user_email, issue):
         return False, "That email address doesn't look valid."
     if not issue:
         return False, "Please describe your question first."
-    team_email, category = categorize(issue, client)  # AI triage: which team?
+    cfg = get_store_config(store_id)
+    category = classify_issue(issue, client)  # AI triage: which category?
+    team_email = resolve_team_email(store_id, category)  # this store's inbox
     try:
         resp = requests.post(
             "https://api.resend.com/emails",
             headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
             json={
-                "from": "Annizon Support <support@annizon.com>",
+                "from": f"{cfg['store_name']} Support <{cfg['support_email']}>",
                 "to": [team_email],
                 "reply_to": user_email,
                 "subject": f"[{category}] Customer question from {user_email}",
@@ -109,7 +112,7 @@ with st.expander("📧 Still need help? Email a human"):
     contact_email = st.text_input("Your email", key="contact_email")
     contact_issue = st.text_area("Your question / issue", key="contact_issue")
     if st.button("Send to support"):
-        ok, msg = send_to_support(contact_email, contact_issue)
+        ok, msg = send_to_support(contact_email, contact_issue, store_id)
         if ok:
             st.success(msg)
         else:
@@ -134,11 +137,16 @@ with st.sidebar:
         st.caption("Merchant-only area.")
     else:
         site_url = st.text_input("Website URL", placeholder="https://example.com", key="onboard_url")
+        store_name_in = st.text_input("Store name", placeholder="H&M", key="onboard_name")
+        support_email_in = st.text_input("Support email", placeholder="support@hm.com", key="onboard_email")
         max_pages = st.slider("Max pages to crawl", 5, 100, 40, key="onboard_pages")
         if st.button("Build chatbot", key="onboard_go"):
             site_url = (site_url or "").strip()
+            support_email = (support_email_in or "").strip()
             if not site_url.startswith(("http://", "https://")):
                 st.error("Please enter a full URL starting with https://")
+            elif not re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", support_email):
+                st.error("Please enter a valid support email.")
             else:
                 with st.spinner(f"Crawling {site_url} — this takes a minute or two..."):
                     try:
@@ -148,6 +156,10 @@ with st.sidebar:
                         pages = []
                 if pages:
                     new_store_id = store_id_for_url(site_url)
+                    save_store_config(new_store_id, {
+                        "store_name": (store_name_in or "").strip() or new_store_id.replace("-", " ").title(),
+                        "support_email": support_email,
+                    })
                     CHUNKS_DIR.mkdir(exist_ok=True)
                     all_chunks = [{"text": c, "source": slug(u)}
                                   for u, t in pages for c in chunk_text(t)]
