@@ -7,11 +7,19 @@ Skips gracefully when Chrome isn't available.
 import os
 
 import pytest
-from selenium import webdriver
-from selenium.webdriver.common.by import By
-from selenium.webdriver.common.keys import Keys
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.support.ui import WebDriverWait
+
+try:
+    from selenium import webdriver
+    from selenium.webdriver.common.by import By
+    from selenium.webdriver.common.keys import Keys
+    from selenium.webdriver.support import expected_conditions as EC
+    from selenium.webdriver.support.ui import WebDriverWait
+except ImportError:  # selenium not installed -> skip whole module, CI stays green
+    webdriver = None
+
+pytestmark = pytest.mark.skipif(
+    webdriver is None, reason="selenium not installed"
+)
 
 APP_URL = os.getenv(
     "CHATBOT_APP_URL",
