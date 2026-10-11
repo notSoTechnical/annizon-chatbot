@@ -276,9 +276,9 @@ python crawler.py https://example.com --max-pages 40 --out chunks.json
 - Pages with shipping / refund / FAQ / policy hints in the URL are crawled first.
 - Output is drop-in compatible with `retrieval.py` — no other code changes needed.
 
-## Multi-store
+## Multi-site
 
-One deployment serves many stores. Each store's chunks live in their own file:
+One deployment serves many websites — stores, travel sites, hospitals, government pages. Each site's chunks live in their own file:
 
 ```
 chunks/annizon-com.json
@@ -288,11 +288,25 @@ chunks/hm-com.json
 - `find_relevant(question, top_k=3, store_id="hm-com")` answers from that store's chunks only — no cross-store leakage.
 - A store id is derived from the website domain (`store_id_for_url()` in `crawler.py`): `https://www.hm.com` → `hm-com`.
 - Unknown store ids fall back to the legacy `chunks.json`, so old deployments keep working.
-- The sidebar has a store picker to switch which store the chat answers as.
+- The sidebar has a site picker to switch which site the chat answers as.
 
-## Merchant onboarding (password-gated)
+### Custom triage categories per site
 
-In the app sidebar: **🏪 Onboard a new store** — enter a website URL, the crawler builds that store's chunk file, and the chatbot is ready. No code, no command line.
+Shops use shipping/refund/return/product; a hospital might use visiting/doctors/billing. Each site can define its own labels in `stores/<site_id>.json`:
+
+```json
+{
+  "store_name": "City Hospital",
+  "support_email": "info@cityhospital.org",
+  "categories": ["visiting", "doctors", "billing", "other"]
+}
+```
+
+`"other"` always exists as the catch-all. The AI router (`triage.classify_issue`) uses the site's own labels, and tickets route to the site's own inboxes.
+
+## Site onboarding (password-gated)
+
+In the app sidebar: **🏪 Onboard a new site** — enter any website URL, the crawler builds that site's chunk file, and the chatbot is ready. No code, no command line. Works for stores, travel, hospitals, government sites — anything with pages.
 
 The write path is locked: set `ADMIN_PASSWORD` in Streamlit Secrets (app Settings → Secrets). Without it, onboarding shows as disabled; with it, only the password holder can add stores.
 
