@@ -263,3 +263,15 @@ The full recipe:
 4. **Evaluate**: MTEB leaderboard for embeddings; standard benchmarks for chat.
 
 **Start small**: train a *tiny* model from scratch on free Colab to learn the full loop — e.g. `nanoGPT` (a small GPT trainable in hours) or a tiny BERT on a small dataset. Same steps, toy scale.
+
+## Auto-crawl (no manual policy URLs)
+
+Give the bot any website URL — it crawls the site itself, finds policy/FAQ-like pages first, and builds `chunks.json` in the same format `ingest.py` produces:
+
+```bash
+python crawler.py https://example.com --max-pages 40 --out chunks.json
+```
+
+- Respects `robots.txt`, stays on the same domain, 0.5s delay between requests.
+- Pages with shipping / refund / FAQ / policy hints in the URL are crawled first.
+- Output is drop-in compatible with `retrieval.py` — no other code changes needed.
