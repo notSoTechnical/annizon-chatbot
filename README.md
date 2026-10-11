@@ -167,7 +167,7 @@ In `theme.liquid`, before `</body>`:
 
 **Code goes to GitHub. Keys go to Secrets.** Never commit an API key.
 
-## RAG cheat sheet (beginner-friendly)
+## RAG Notes
 
 **Chunk**: a policy page is too long for the bot to read at once, so `ingest.py` cuts it into ~500-character slips and saves them to `chunks.json`. This store: 4 policy pages → 77 chunks.
 
