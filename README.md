@@ -214,7 +214,7 @@ In `theme.liquid`, before `</body>`:
 
 ## Run your own model (data never leaves your machine)
 
-Why: every question sent to a third-party API is data shared with that vendor. Banks and hospitals already self-host for this reason. The realistic path is **self-host + fine-tune** — training from scratch costs $100K+ in GPUs and is out of reach.
+Why: every question sent to a third-party API is data shared with that vendor. Banks and hospitals already self-host for this reason. The practical path is **self-host + fine-tune**.
 
 **Step 1 — local embeddings (already wired in):**
 ```bash
@@ -255,12 +255,11 @@ Notes:
 
 ### From scratch (what it really takes)
 
-The honest recipe, so you know what "training from scratch" actually means:
+The full recipe:
 
 1. **Data**: billions of text pairs (embeddings) or trillions of tokens (chat model). Collecting and cleaning data is most of the work.
 2. **Architecture**: BERT-style encoder for embeddings, GPT-style decoder for chat. Start from a known architecture — nobody invents a new one on the first try.
-3. **Hardware**: GPUs. Cost anchors: tiny BERT-size ≈ $1K–10K in cloud GPUs; 7B chat model ≈ $100K–1M+; frontier models ≈ $100M+.
-4. **Framework**: PyTorch + distributed training (DeepSpeed / FSDP) across many GPUs.
-5. **Evaluate**: MTEB leaderboard for embeddings; standard benchmarks for chat.
+3. **Hardware**: GPUs, with distributed training (PyTorch + DeepSpeed / FSDP) across many of them.
+4. **Evaluate**: MTEB leaderboard for embeddings; standard benchmarks for chat.
 
-**The $0 way to learn it**: train a *tiny* model from scratch on free Colab to learn the full loop — e.g. `nanoGPT` (a small GPT trainable in hours) or a tiny BERT on a small dataset. Same steps, toy scale. That is how you learn "how to train from scratch" without the $100K.
+**Start small**: train a *tiny* model from scratch on free Colab to learn the full loop — e.g. `nanoGPT` (a small GPT trainable in hours) or a tiny BERT on a small dataset. Same steps, toy scale.
