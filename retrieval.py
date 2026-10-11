@@ -10,8 +10,10 @@ How it works:
   on the next app restart.
 - Each question costs one small embedContent call, then pure-Python dot
   products.
-- If the embedding API is ever down, it falls back to the old keyword
-  overlap scorer so the bot stays alive (worst case = today's behavior).
+- Three-layer fallback (never crashes, just gets dumber):
+  1. Gemini embeddings (primary)
+  2. Local sentence-transformers model (optional backup, no API needed)
+  3. Keyword overlap (last resort)
 
 Needs GEMINI_API_KEY in the environment (same key the chatbot already uses).
 """
@@ -31,6 +33,7 @@ BATCH_URL = (
     "https://generativelanguage.googleapis.com/v1beta"
     f"/models/{EMBED_MODEL}:batchEmbedContents"
 )
+LOCAL_MODEL_NAME = "all-MiniLM-L6-v2"
 
 # chunks.json sits next to this file (written by ingest.py, committed to git)
 CHUNKS_PATH = Path(__file__).parent / "chunks.json"
@@ -91,6 +94,34 @@ def _dot(a, b):
     return sum(x * y for x, y in zip(a, b))
 
 
+def _as_list(vec):
+    """sentence-transformers returns numpy arrays; _dot wants plain lists."""
+    return vec.tolist() if hasattr(vec, "tolist") else list(vec)
+
+
+@lru_cache(maxsize=1)
+def _local_model():
+    """Lazily load the backup embedding model (ImportError if not installed)."""
+    from sentence_transformers import SentenceTransformer
+    return SentenceTransformer(LOCAL_MODEL_NAME)
+
+
+@lru_cache(maxsize=1)
+def _local_chunk_vectors():
+    """Embed every chunk with the LOCAL model (its own vector space)."""
+    model = _local_model()
+    chunks = _load_chunks()
+    return [_as_list(v) for v in model.encode([c["text"] for c in chunks])]
+
+
+def _local_scored(question, chunks):
+    """Score with the local backup model (no API key, no network needed)."""
+    model = _local_model()
+    q_vec = _as_list(model.encode(question))
+    vecs = _local_chunk_vectors()
+    return [(_dot(q_vec, v), c) for v, c in zip(vecs, chunks)]
+
+
 def _keyword_scored(question, chunks):
     """Old scorer, kept as the offline fallback."""
     q_words = set(question.lower().split())
@@ -107,7 +138,11 @@ def find_relevant(question, top_k=3):
         q_vec = _embed_one(question)
         scored = [(_dot(q_vec, v), c) for v, c in zip(vecs, chunks)]
     except Exception:
-        # Embedding API down? Fall back to keyword overlap — bot stays alive.
-        scored = _keyword_scored(question, chunks)
+        try:
+            # Gemini down? Local backup model — no API, no key needed.
+            scored = _local_scored(question, chunks)
+        except Exception:
+            # Last resort: keyword overlap — bot stays alive.
+            scored = _keyword_scored(question, chunks)
     scored.sort(key=lambda s: s[0], reverse=True)
     return [c for _, c in scored[:top_k]]
