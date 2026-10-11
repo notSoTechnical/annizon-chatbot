@@ -19,12 +19,15 @@ TEAMS = {
 USE_TEAM_INBOXES = False
 
 
-def classify_issue(issue, client):
+def classify_issue(issue, client, categories=None):
     """Ask the LLM to classify the issue. Returns just the category name.
 
-    Split out of categorize() so multi-store app.py can do its own
-    per-store email routing (see store_config.resolve_team_email).
+    Split out of categorize() so multi-site app.py can do its own
+    per-site email routing (see store_config.resolve_team_email).
+    `categories` lets a hospital/travel/government site use its own
+    labels; defaults to the shop set. "other" is always the catch-all.
     """
+    categories = categories or list(TEAMS)
     try:
         resp = client.chat.completions.create(
             model="gemini-2.5-flash",
@@ -32,12 +35,9 @@ def classify_issue(issue, client):
                 {
                     "role": "system",
                     "content": (
-                        "You are a support ticket router for an online store. "
-                        "Classify the customer message into exactly one category: "
-                        "shipping, refund, return, product, other. "
-                        "shipping = delivery, tracking, speed; "
-                        "refund = money back; return = sending items back; "
-                        "product = questions about items; other = anything else. "
+                        "You are a support ticket router for a website. "
+                        "Classify the visitor message into exactly one category: "
+                        + ", ".join(categories) + ". "
                         "Reply with ONLY the category name, nothing else."
                     ),
                 },
@@ -47,7 +47,7 @@ def classify_issue(issue, client):
         category = resp.choices[0].message.content.strip().lower()
     except Exception:
         category = "other"  # AI call failed → safe fallback, the form never crashes
-    if category not in TEAMS:  # model got creative → safe fallback
+    if category not in categories:  # model got creative → safe fallback
         category = "other"
     return category
 

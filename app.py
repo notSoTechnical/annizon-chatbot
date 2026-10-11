@@ -36,13 +36,13 @@ def resolve_store_id(choice):
     return choice
 
 
-def answer(question, store_id="default", store_name="Annizon"):
+def answer(question, store_id="default", site_name="Annizon"):
     chunks = find_relevant(question, top_k=3, store_id=store_id)
     context = "\n\n".join(c["text"] for c in chunks)
     resp = client.chat.completions.create(
         model="gemini-2.5-flash",
         messages=[
-            {"role": "system", "content": f"You are {store_name}'s customer service assistant. Answer ONLY using the policy excerpts below. If the answer is not in the excerpts, say you don't know."},
+            {"role": "system", "content": f"You are {site_name}'s assistant. Answer ONLY using the information excerpts below. If the answer is not in the excerpts, say you don't know."},
             {"role": "user", "content": "Policy excerpts:\n" + context + "\n\nQuestion: " + question},
         ],
     )
@@ -66,7 +66,7 @@ def send_to_support(user_email, issue, store_id="default"):
     if not issue:
         return False, "Please describe your question first."
     cfg = get_store_config(store_id)
-    category = classify_issue(issue, client)  # AI triage: which category?
+    category = classify_issue(issue, client, categories=cfg.get("categories"))  # this site's labels
     team_email = resolve_team_email(store_id, category)  # this store's inbox
     try:
         resp = requests.post(
@@ -101,7 +101,7 @@ if q:
     st.session_state.messages.append({"role": "user", "content": q})
     with st.chat_message("user"):
         st.write(q)
-    a = answer(q, store_id=store_id, store_name=store_name)
+    a = answer(q, store_id=store_id, site_name=site_name)
     st.session_state.messages.append({"role": "assistant", "content": a})
     with st.chat_message("assistant"):
         st.write(a)
@@ -121,14 +121,15 @@ with st.expander("📧 Still need help? Email a human"):
 
 # ---- Store picker: whose policies is this chat answering from? ----
 with st.sidebar:
-    st.header("\U0001f3ea Current store")
+    st.header("\U0001f3ea Current site")
     store_choice = st.selectbox("Answering as", available_stores(), key="store_pick")
     store_id = resolve_store_id(store_choice)
-    store_name = store_choice.replace("default (annizon.com)", "Annizon").replace("-", " ").title()
+    cfg_pick = get_store_config(store_id)
+    site_name = cfg_pick.get("store_name") or store_choice.replace("default (annizon.com)", "Annizon").replace("-", " ").title()
 
 # ---- Merchant onboarding: enter a URL, get a chatbot (password-gated) ----
 with st.sidebar:
-    st.header("\U0001f3ea Onboard a new store")
+    st.header("\U0001f3ea Onboard a new site")
     _admin_ok = st.secrets.get("ADMIN_PASSWORD", "")
     _pw = st.text_input("Merchant password", type="password", key="onboard_pw")
     if not _admin_ok:
@@ -137,7 +138,7 @@ with st.sidebar:
         st.caption("Merchant-only area.")
     else:
         site_url = st.text_input("Website URL", placeholder="https://example.com", key="onboard_url")
-        store_name_in = st.text_input("Store name", placeholder="H&M", key="onboard_name")
+        site_name_in = st.text_input("Site name", placeholder="City Hospital", key="onboard_name")
         support_email_in = st.text_input("Support email", placeholder="support@hm.com", key="onboard_email")
         max_pages = st.slider("Max pages to crawl", 5, 100, 40, key="onboard_pages")
         if st.button("Build chatbot", key="onboard_go"):
@@ -157,7 +158,7 @@ with st.sidebar:
                 if pages:
                     new_store_id = store_id_for_url(site_url)
                     save_store_config(new_store_id, {
-                        "store_name": (store_name_in or "").strip() or new_store_id.replace("-", " ").title(),
+                        "store_name": (site_name_in or "").strip() or new_store_id.replace("-", " ").title(),
                         "support_email": support_email,
                     })
                     CHUNKS_DIR.mkdir(exist_ok=True)

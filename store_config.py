@@ -26,6 +26,10 @@ CATEGORIES = ("shipping", "refund", "return", "product", "other")
 DEFAULTS = {
     "store_name": "Annizon",
     "support_email": "info@annizon.com",
+    # A hospital might use ["visiting", "doctors", "billing", "other"];
+    # a travel site ["booking", "flights", "hotels", "other"]. Any site
+    # works — "other" always exists as the catch-all.
+    "categories": ["shipping", "refund", "return", "product", "other"],
     "team_emails": {
         "shipping": "shipping@annizon.com",
         "refund": "refund@annizon.com",
@@ -72,7 +76,7 @@ def save_store_config(store_id, config):
 def resolve_team_email(store_id, category):
     """Which inbox gets this ticket? Respects use_team_inboxes like triage.py."""
     cfg = get_store_config(store_id)
-    if category not in CATEGORIES:
+    if category not in cfg.get("categories", CATEGORIES):
         category = "other"
     if cfg.get("use_team_inboxes"):
         return cfg["team_emails"].get(category, cfg["support_email"])
