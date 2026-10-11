@@ -114,6 +114,14 @@ def slug(url):
     return path or "home"
 
 
+def store_id_for_url(url):
+    """Turn a website URL into a filesystem-safe store id: H&M -> hm-com."""
+    import re
+    netloc = urlparse(url).netloc.lower()
+    netloc = re.sub(r"^www\.", "", netloc)  # www.hm.com -> hm.com
+    return re.sub(r"[^a-z0-9]+", "-", netloc).strip("-") or "default"
+
+
 def main():
     ap = argparse.ArgumentParser(description="Crawl a site into chunks.json")
     ap.add_argument("url", help="site root URL, e.g. https://example.com")
