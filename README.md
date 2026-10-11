@@ -183,3 +183,21 @@ In `theme.liquid`, before `</body>`:
 - Real numbers come from Google's API: `genai.embed_content(model="models/text-embedding-004", content="...")` → 768 numbers
 - 768 is Google's choice: this model describes one meaning with 768 numbers
 - Dot product measures "how similar": bigger dot product = closer meaning = the chunk the bot picks to answer
+
+**Embedding dimensions across providers**:
+
+| Provider | Model | Dimensions |
+|---|---|---|
+| Google | `text-embedding-004` (this bot) | 768 |
+| Google | `gemini-embedding-001` | 3072 |
+| OpenAI | `text-embedding-3-small` | 1536 |
+| OpenAI | `text-embedding-3-large` | 3072 |
+| DeepSeek | `deepseek-embedding-v2` | 1536 |
+| xAI | `grok-embedding-v1` | configurable via `dimensions` param |
+| Cohere | `embed-english-v3.0` | 1024 |
+| Mistral | `mistral-embed` | 1024 |
+| Local | `all-MiniLM-L6-v2` | 384 |
+
+(Anthropic/Claude has no embedding API — people pair Claude with Voyage, Cohere, or OpenAI embeddings.)
+
+**Bigger ≠ always better.** More dimensions = more room for fine distinctions, but training quality matters more: OpenAI's `text-embedding-3-large` truncated to 256 dims can beat the older 1536-dim `ada-002`. Judge by benchmark scores (MTEB), not dimension count.
