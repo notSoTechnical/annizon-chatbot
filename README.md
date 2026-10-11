@@ -235,3 +235,20 @@ Note: an Intel Mac has no GPU — it works but is slow; Apple Silicon is much fa
 3. Swap the fine-tuned model into Step 1 / 2.
 
 You do not need Step 3 until your domain has jargon the base models misunderstand — 77 policy chunks + stock models is plenty to start.
+
+### In CI (GitHub Actions)
+
+The small embedding model runs fine on CI runners; the big chat model does not.
+
+```yaml
+# .github/workflows/nightly.yml — verifies the local fallback with no API key
+- name: Test local embedding fallback (no API key)
+  run: |
+    pip install sentence-transformers
+    env -u GEMINI_API_KEY pytest tests/test_chatbot.py -v -k "retrieval"
+```
+
+Notes:
+- `sentence-transformers` (~90MB model) installs in 1–3 minutes on a GitHub runner — fine for a nightly job. It stays OUT of `requirements.txt` because torch is too heavy for Streamlit's free tier (the deployed app).
+- A full chat model (Ollama / llama3.1, several GB) is too heavy for CI runners — that layer is covered by mocked tests instead.
+- Editing workflow files via API needs the `Workflows` permission on your GitHub token.
