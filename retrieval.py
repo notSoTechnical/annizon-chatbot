@@ -5,9 +5,12 @@ an embedding vector (Gemini text-embedding-004); relevance = dot product.
 Same interface as before: find_relevant(question, top_k=3) -> top chunks.
 
 How it works:
-- Chunk vectors are embedded ONCE per app lifetime (one batch API call for
-  all chunks) and cached in-process. Re-ingesting chunks.json takes effect
-  on the next app restart.
+- Chunk vectors are embedded ONCE per store per app lifetime (one batch API
+  call for all chunks) and cached in-process. Re-ingesting takes effect
+  on the next app restart (or cache_clear).
+- Multi-store: chunks live in chunks/<store_id>.json, one file per store.
+  find_relevant(..., store_id="...") picks the right store. Falls back to
+  the legacy chunks.json when no per-store file exists.
 - Each question costs one small embedContent call, then pure-Python dot
   products.
 - Three-layer fallback (never crashes, just gets dumber):
@@ -37,6 +40,8 @@ LOCAL_MODEL_NAME = "all-MiniLM-L6-v2"
 
 # chunks.json sits next to this file (written by ingest.py, committed to git)
 CHUNKS_PATH = Path(__file__).parent / "chunks.json"
+# Multi-store: chunks/<store_id>.json, one file per store (written by crawler.py)
+CHUNKS_DIR = Path(__file__).parent / "chunks"
 
 
 def _headers():
@@ -78,15 +83,21 @@ def _embed_many(texts):
     return [e["values"] for e in r.json()["embeddings"]]
 
 
-@lru_cache(maxsize=1)
-def _load_chunks():
-    return json.loads(CHUNKS_PATH.read_text(encoding="utf-8"))
+@lru_cache(maxsize=32)
+def _load_chunks(store_id="default"):
+    """Load one store's chunks; falls back to legacy chunks.json."""
+    path = CHUNKS_DIR / f"{store_id}.json"
+    if not path.exists():
+        path = CHUNKS_PATH
+    if not path.exists():
+        return []
+    return json.loads(path.read_text(encoding="utf-8"))
 
 
-@lru_cache(maxsize=1)
-def _chunk_vectors():
-    """Embed every chunk once; cached for the life of the process."""
-    chunks = _load_chunks()
+@lru_cache(maxsize=32)
+def _chunk_vectors(store_id="default"):
+    """Embed every chunk once per store; cached for the life of the process."""
+    chunks = _load_chunks(store_id)
     return _embed_many([c["text"] for c in chunks])
 
 
@@ -106,19 +117,19 @@ def _local_model():
     return SentenceTransformer(LOCAL_MODEL_NAME)
 
 
-@lru_cache(maxsize=1)
-def _local_chunk_vectors():
+@lru_cache(maxsize=32)
+def _local_chunk_vectors(store_id="default"):
     """Embed every chunk with the LOCAL model (its own vector space)."""
     model = _local_model()
-    chunks = _load_chunks()
+    chunks = _load_chunks(store_id)
     return [_as_list(v) for v in model.encode([c["text"] for c in chunks])]
 
 
-def _local_scored(question, chunks):
+def _local_scored(question, chunks, store_id="default"):
     """Score with the local backup model (no API key, no network needed)."""
     model = _local_model()
     q_vec = _as_list(model.encode(question))
-    vecs = _local_chunk_vectors()
+    vecs = _local_chunk_vectors(store_id)
     return [(_dot(q_vec, v), c) for v, c in zip(vecs, chunks)]
 
 
@@ -130,17 +141,17 @@ def _keyword_scored(question, chunks):
     ]
 
 
-def find_relevant(question, top_k=3):
-    """Return the top_k most relevant chunks for question."""
-    chunks = _load_chunks()
+def find_relevant(question, top_k=3, store_id="default"):
+    """Return the top_k most relevant chunks for question, from one store."""
+    chunks = _load_chunks(store_id)
     try:
-        vecs = _chunk_vectors()
+        vecs = _chunk_vectors(store_id)
         q_vec = _embed_one(question)
         scored = [(_dot(q_vec, v), c) for v, c in zip(vecs, chunks)]
     except Exception:
         try:
             # Gemini down? Local backup model — no API, no key needed.
-            scored = _local_scored(question, chunks)
+            scored = _local_scored(question, chunks, store_id)
         except Exception:
             # Last resort: keyword overlap — bot stays alive.
             scored = _keyword_scored(question, chunks)
