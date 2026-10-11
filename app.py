@@ -1,10 +1,13 @@
+import json
 import os
 import re
 import streamlit as st
 import requests
 from openai import OpenAI
-from retrieval import find_relevant
+import retrieval
+from retrieval import CHUNKS_PATH, find_relevant
 from triage import categorize
+from crawler import crawl, chunk as chunk_text, slug
 
 client = OpenAI(
     api_key=os.environ["GEMINI_API_KEY"],
@@ -94,3 +97,34 @@ with st.expander("📧 Still need help? Email a human"):
             st.success(msg)
         else:
             st.error(msg)
+
+
+# ---- Merchant onboarding: enter a URL, get a chatbot ----
+with st.sidebar:
+    st.header("\U0001f3ea Onboard a new store")
+    site_url = st.text_input("Website URL", placeholder="https://example.com", key="onboard_url")
+    max_pages = st.slider("Max pages to crawl", 5, 100, 40, key="onboard_pages")
+    if st.button("Build chatbot", key="onboard_go"):
+        site_url = (site_url or "").strip()
+        if not site_url.startswith(("http://", "https://")):
+            st.error("Please enter a full URL starting with https://")
+        else:
+            with st.spinner(f"Crawling {site_url} — this takes a minute or two..."):
+                try:
+                    pages = crawl(site_url, max_pages=max_pages)
+                except Exception as e:
+                    st.error(f"Crawl failed: {e}")
+                    pages = []
+            if pages:
+                all_chunks = [{"text": c, "source": slug(u)}
+                              for u, t in pages for c in chunk_text(t)]
+                with open(CHUNKS_PATH, "w") as f:
+                    json.dump(all_chunks, f, ensure_ascii=False, indent=2)
+                # retrieval.py caches chunks in-process — clear it so the new
+                # chunks take effect without restarting the app.
+                retrieval._load_chunks.cache_clear()
+                retrieval._chunk_vectors.cache_clear()
+                retrieval._local_chunk_vectors.cache_clear()
+                st.success(f"Done! {len(all_chunks)} chunks from {len(pages)} pages. Ask away \U0001f447")
+            else:
+                st.warning("No usable pages found — check the URL and try again.")
