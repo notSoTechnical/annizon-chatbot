@@ -25,3 +25,18 @@ jobs:
         run: pytest tests/ -v
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+
+      - name: Set up Chrome
+        uses: browser-actions/setup-chrome@v1
+
+      - name: Run UI tests (headless, with screenshots)
+        run: |
+          pip install selenium
+          pytest tests/test_ui.py -v
+
+      - name: Upload UI screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-screenshots
+          path: screenshots/
