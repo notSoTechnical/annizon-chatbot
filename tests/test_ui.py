@@ -65,6 +65,7 @@ def _find_chat_input(driver, timeout=TIMEOUT):
             EC.presence_of_element_located((By.CSS_SELECTOR, CHAT_INPUT_SELECTOR))
         )
     except Exception:
+        _shot(driver, "00_selector_not_found")  # debug: see what the page looked like
         pytest.skip(
             "Streamlit UI changed: selector "
             f"'{CHAT_INPUT_SELECTOR}' not found — update it in tests/test_ui.py."
