@@ -184,21 +184,29 @@ In `theme.liquid`, before `</body>`:
 - 768 is Google's choice: this model describes one meaning with 768 numbers
 - Dot product measures "how similar": bigger dot product = closer meaning = the chunk the bot picks to answer
 
-**Embedding dimensions across providers**:
+**Embedding models across providers**:
 
-| Provider | Model | Dimensions |
-|---|---|---|
-| Google | `text-embedding-004` (this bot) | 768 |
-| Google | `gemini-embedding-001` | 3072 |
-| OpenAI | `text-embedding-3-small` | 1536 |
-| OpenAI | `text-embedding-3-large` | 3072 |
-| DeepSeek | `deepseek-embedding-v2` | 1536 |
-| xAI | `grok-embedding-v1` | configurable via `dimensions` param |
-| Cohere | `embed-english-v3.0` | 1024 |
-| Mistral | `mistral-embed` | 1024 |
-| Local | `all-MiniLM-L6-v2` | 384 |
+| Provider | Model | Dimensions | Best for |
+|---|---|---|---|
+| Google | `text-embedding-004` (this bot) | 768 | text |
+| Google | `gemini-embedding-001` | 3072 | text |
+| Google | `gemini-embedding-2` | 3072 (128–3072) | text, image, video, audio, PDF |
+| Google (Vertex) | `multimodalembedding@001` | 1408 | text, image, video |
+| OpenAI | `text-embedding-3-small` | 1536 | text |
+| OpenAI | `text-embedding-3-large` | 3072 | text |
+| OpenAI | `CLIP ViT-B/32` | 512 | text, image |
+| DeepSeek | `deepseek-embedding-v2` | 1536 | text |
+| xAI | `grok-embedding-v1` | configurable | text |
+| Cohere | `embed-english-v3.0` | 1024 | text |
+| Cohere | `embed-v4.0` | 1536 (256–1536) | text, image |
+| Mistral | `mistral-embed` | 1024 | text |
+| Mistral | `codestral-embed` | 1024 | code |
+| Voyage | `voyage-code-3` | 2048 (256–2048) | code |
+| Voyage | `voyage-multimodal-3.5` | 1024 | text, image, video |
+| Local | `all-MiniLM-L6-v2` | 384 | text |
 
 (Anthropic/Claude has no embedding API — people pair Claude with Voyage, Cohere, or OpenAI embeddings.)
+
 
 **Bigger ≠ always better.** More dimensions = more room for fine distinctions, but training quality matters more: OpenAI's `text-embedding-3-large` truncated to 256 dims can beat the older 1536-dim `ada-002`. Judge by benchmark scores (MTEB), not dimension count.
 
