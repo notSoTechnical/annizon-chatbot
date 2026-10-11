@@ -211,3 +211,27 @@ In `theme.liquid`, before `</body>`:
 **Bigger ≠ always better.** More dimensions = more room for fine distinctions, but training quality matters more: OpenAI's `text-embedding-3-large` truncated to 256 dims can beat the older 1536-dim `ada-002`. Judge by benchmark scores (MTEB), not dimension count.
 
 **Tradeoff**: bigger dimensions can store more fine-grained meaning, but cost more — larger vectors to store, slower dot-product scoring, slower retrieval. That is why 768 is a popular sweet spot, and why some models let you truncate (e.g. the `dimensions` param) when speed matters more than the last bit of accuracy.
+
+## Run your own model (data never leaves your machine)
+
+Why: every question sent to a third-party API is data shared with that vendor. Banks and hospitals already self-host for this reason. The realistic path is **self-host + fine-tune** — training from scratch costs $100K+ in GPUs and is out of reach.
+
+**Step 1 — local embeddings (already wired in):**
+```bash
+pip install sentence-transformers
+```
+`retrieval.py` automatically falls back to the local `all-MiniLM-L6-v2` model when the Gemini API is unreachable — on that path no question text ever leaves your machine.
+
+**Step 2 — local chat model (replaces the Gemini API):**
+1. Install Ollama from [ollama.com](https://ollama.com).
+2. `ollama pull llama3.1` (or `qwen2.5`), then `ollama run llama3.1` to chat in your terminal.
+3. Point `chatbot.py` at `http://localhost:11434` (Ollama's OpenAI-compatible endpoint) instead of the Gemini API.
+
+Note: an Intel Mac has no GPU — it works but is slow; Apple Silicon is much faster. Good enough to learn the plumbing.
+
+**Step 3 — fine-tune on your own data (later):**
+1. Collect Q&A pairs: real customer questions + your ideal answers.
+2. Fine-tune an open embedding model with `sentence-transformers` (or a chat model with `unsloth`) on a free Colab GPU.
+3. Swap the fine-tuned model into Step 1 / 2.
+
+You do not need Step 3 until your domain has jargon the base models misunderstand — 77 policy chunks + stock models is plenty to start.
