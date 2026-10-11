@@ -167,7 +167,7 @@ In `theme.liquid`, before `</body>`:
 
 **Code goes to GitHub. Keys go to Secrets.** Never commit an API key.
 
-## RAG 小抄 (beginner's cheat sheet)
+## RAG 小抄
 
 **Chunk (小纸条)**: 政策原文太长，`ingest.py` 把它切成约 500 字一张的小纸条，存进 `chunks.json`。本站：4 个政策页面 → 77 张小纸条。
 
