@@ -201,3 +201,5 @@ In `theme.liquid`, before `</body>`:
 (Anthropic/Claude has no embedding API — people pair Claude with Voyage, Cohere, or OpenAI embeddings.)
 
 **Bigger ≠ always better.** More dimensions = more room for fine distinctions, but training quality matters more: OpenAI's `text-embedding-3-large` truncated to 256 dims can beat the older 1536-dim `ada-002`. Judge by benchmark scores (MTEB), not dimension count.
+
+**Tradeoff**: bigger dimensions can store more fine-grained meaning, but cost more — larger vectors to store, slower dot-product scoring, slower retrieval. That is why 768 is a popular sweet spot, and why some models let you truncate (e.g. the `dimensions` param) when speed matters more than the last bit of accuracy.
