@@ -275,3 +275,29 @@ python crawler.py https://example.com --max-pages 40 --out chunks.json
 - Respects `robots.txt`, stays on the same domain, 0.5s delay between requests.
 - Pages with shipping / refund / FAQ / policy hints in the URL are crawled first.
 - Output is drop-in compatible with `retrieval.py` — no other code changes needed.
+
+## Multi-store
+
+One deployment serves many stores. Each store's chunks live in their own file:
+
+```
+chunks/annizon-com.json
+chunks/hm-com.json
+```
+
+- `find_relevant(question, top_k=3, store_id="hm-com")` answers from that store's chunks only — no cross-store leakage.
+- A store id is derived from the website domain (`store_id_for_url()` in `crawler.py`): `https://www.hm.com` → `hm-com`.
+- Unknown store ids fall back to the legacy `chunks.json`, so old deployments keep working.
+- The sidebar has a store picker to switch which store the chat answers as.
+
+## Merchant onboarding (password-gated)
+
+In the app sidebar: **🏪 Onboard a new store** — enter a website URL, the crawler builds that store's chunk file, and the chatbot is ready. No code, no command line.
+
+The write path is locked: set `ADMIN_PASSWORD` in Streamlit Secrets (app Settings → Secrets). Without it, onboarding shows as disabled; with it, only the password holder can add stores.
+
+## Security notes
+
+- **No keys in code.** `GEMINI_API_KEY`, `RESEND_API_KEY`, and `ADMIN_PASSWORD` live in Streamlit Secrets / env vars. The repo is safe to keep public.
+- **Cloning the repo does not affect the deployed app.** A clone is just a copy of the code — it runs under someone else's account with their own keys. Your deployment is tied to your Streamlit account and your Secrets.
+- The only write path on the live app is merchant onboarding, gated by `ADMIN_PASSWORD`.
