@@ -31,7 +31,7 @@ The system-prompt rule that prevents hallucinations:
 | File | What it does |
 |------|--------------|
 | `ingest.py` | Fetches policy pages (shipping / refund / privacy / terms) from the store, extracts clean text with BeautifulSoup (`div.shopify-policy__body`), chunks it into ~500-char pieces, saves `chunks.json`. Run once, or whenever policies change. |
-| `retrieval.py` | `find_relevant(question, top_k=3)` — embeds the question with Gemini `text-embedding-004` and returns the top 3 chunks by dot-product similarity (understands meaning, not just matching words — e.g. "shipped" matches "shipping" policy). Chunk embeddings are cached once per process; if the embedding API is unreachable, it falls back to keyword overlap. |
+| `retrieval.py` | `find_relevant(question, top_k=3)` — embeds the question with Gemini `text-embedding-004` and returns the top 3 chunks by dot-product similarity (understands meaning, not just matching words — e.g. "shipped" matches "shipping" policy). Chunk embeddings are cached once per process. Three-layer fallback: Gemini → local `sentence-transformers` model (optional) → keyword overlap. |
 | `chatbot.py` | Command-line chatbot: retrieve → build prompt → ask Gemini → print answer. Loops until you type `quit`. |
 | `app.py` | Streamlit web UI version of the same RAG pipeline. This is what gets deployed to the cloud. Chat history lives in `st.session_state` (Streamlit re-runs the script on every interaction). Also hosts the **📧 Email a human** fallback form (see below). |
 | `widget.js` | One-line embed for any Shopify theme: floating chat bubble (bottom-right) → click opens the chatbot in a panel (embedded via iframe). Served through jsDelivr CDN. |
@@ -103,6 +103,21 @@ Every night at 2 AM ET, GitHub Actions re-runs `ingest.py` to re-fetch the store
 ```
 
 The `GEMINI_API_KEY` for CI lives in the repo's Actions Secrets — never in the code.
+
+## Backup embedding — offline, optional 🔋
+
+If the Gemini embedding API is unreachable, `find_relevant()` falls back in two stages:
+
+1. **Local model** (`sentence-transformers` / `all-MiniLM-L6-v2`, ~90MB) — no API key, no network needed after the first download. It embeds with its own model, so its vectors are never mixed with Gemini's.
+2. **Keyword overlap** — last resort, always available.
+
+Setup (one-time, optional):
+
+```bash
+pip install sentence-transformers   # pulls torch; model downloads on first use
+```
+
+It's deliberately **not** in `requirements.txt` (torch is heavy for the Streamlit free tier). If the package isn't installed, the code skips straight to keyword fallback — nothing breaks, nothing to configure.
 
 ## Run it locally
 
