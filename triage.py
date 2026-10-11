@@ -19,11 +19,11 @@ TEAMS = {
 USE_TEAM_INBOXES = False
 
 
-def categorize(issue, client):
-    """Ask the LLM to classify the issue. Returns (team_email, category).
+def classify_issue(issue, client):
+    """Ask the LLM to classify the issue. Returns just the category name.
 
-    `client` is passed in (not imported as a global) so this function
-    stays testable without a real API key — see tests/test_chatbot.py.
+    Split out of categorize() so multi-store app.py can do its own
+    per-store email routing (see store_config.resolve_team_email).
     """
     try:
         resp = client.chat.completions.create(
@@ -49,5 +49,17 @@ def categorize(issue, client):
         category = "other"  # AI call failed → safe fallback, the form never crashes
     if category not in TEAMS:  # model got creative → safe fallback
         category = "other"
+    return category
+
+
+def categorize(issue, client):
+    """Ask the LLM to classify the issue. Returns (team_email, category).
+
+    `client` is passed in (not imported as a global) so this function
+    stays testable without a real API key — see tests/test_chatbot.py.
+    Kept for backward compatibility; new code should use classify_issue()
+    + store_config.resolve_team_email() for per-store routing.
+    """
+    category = classify_issue(issue, client)
     team = TEAMS[category] if USE_TEAM_INBOXES else TEAMS["other"]
     return team, category
