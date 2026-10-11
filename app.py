@@ -5,9 +5,9 @@ import streamlit as st
 import requests
 from openai import OpenAI
 import retrieval
-from retrieval import CHUNKS_PATH, find_relevant
+from retrieval import CHUNKS_DIR, CHUNKS_PATH, find_relevant
 from triage import categorize
-from crawler import crawl, chunk as chunk_text, slug
+from crawler import crawl, chunk as chunk_text, slug, store_id_for_url
 
 client = OpenAI(
     api_key=os.environ["GEMINI_API_KEY"],
@@ -18,13 +18,30 @@ client = OpenAI(
 # so there is no hardcoded SUPPORT_EMAIL here anymore.
 
 
-def answer(question):
-    chunks = find_relevant(question, top_k=3)
+def available_stores():
+    """Store ids with their own chunks file, plus legacy default."""
+    stores = []
+    if CHUNKS_DIR.exists():
+        stores = sorted(p.stem for p in CHUNKS_DIR.glob("*.json"))
+    if CHUNKS_PATH.exists():
+        stores = ["default (annizon.com)"] + stores
+    return stores or ["default (annizon.com)"]
+
+
+def resolve_store_id(choice):
+    """Sidebar choice -> store_id used by retrieval."""
+    if choice.startswith("default"):
+        return "default"
+    return choice
+
+
+def answer(question, store_id="default", store_name="Annizon"):
+    chunks = find_relevant(question, top_k=3, store_id=store_id)
     context = "\n\n".join(c["text"] for c in chunks)
     resp = client.chat.completions.create(
         model="gemini-2.5-flash",
         messages=[
-            {"role": "system", "content": "You are Annizon's customer service assistant. Answer ONLY using the policy excerpts below. If the answer is not in the excerpts, say you don't know."},
+            {"role": "system", "content": f"You are {store_name}'s customer service assistant. Answer ONLY using the policy excerpts below. If the answer is not in the excerpts, say you don't know."},
             {"role": "user", "content": "Policy excerpts:\n" + context + "\n\nQuestion: " + question},
         ],
     )
@@ -81,7 +98,7 @@ if q:
     st.session_state.messages.append({"role": "user", "content": q})
     with st.chat_message("user"):
         st.write(q)
-    a = answer(q)
+    a = answer(q, store_id=store_id, store_name=store_name)
     st.session_state.messages.append({"role": "assistant", "content": a})
     with st.chat_message("assistant"):
         st.write(a)
@@ -98,6 +115,13 @@ with st.expander("📧 Still need help? Email a human"):
         else:
             st.error(msg)
 
+
+# ---- Store picker: whose policies is this chat answering from? ----
+with st.sidebar:
+    st.header("\U0001f3ea Current store")
+    store_choice = st.selectbox("Answering as", available_stores(), key="store_pick")
+    store_id = resolve_store_id(store_choice)
+    store_name = store_choice.replace("default (annizon.com)", "Annizon").replace("-", " ").title()
 
 # ---- Merchant onboarding: enter a URL, get a chatbot ----
 with st.sidebar:
@@ -116,15 +140,18 @@ with st.sidebar:
                     st.error(f"Crawl failed: {e}")
                     pages = []
             if pages:
+                new_store_id = store_id_for_url(site_url)
+                CHUNKS_DIR.mkdir(exist_ok=True)
                 all_chunks = [{"text": c, "source": slug(u)}
                               for u, t in pages for c in chunk_text(t)]
-                with open(CHUNKS_PATH, "w") as f:
+                with open(CHUNKS_DIR / f"{new_store_id}.json", "w") as f:
                     json.dump(all_chunks, f, ensure_ascii=False, indent=2)
                 # retrieval.py caches chunks in-process — clear it so the new
                 # chunks take effect without restarting the app.
                 retrieval._load_chunks.cache_clear()
                 retrieval._chunk_vectors.cache_clear()
                 retrieval._local_chunk_vectors.cache_clear()
-                st.success(f"Done! {len(all_chunks)} chunks from {len(pages)} pages. Ask away \U0001f447")
+                st.success(f"Done! {len(all_chunks)} chunks from {len(pages)} pages "
+                           f"saved as store '{new_store_id}'. Pick it above \U0001f447")
             else:
                 st.warning("No usable pages found — check the URL and try again.")
