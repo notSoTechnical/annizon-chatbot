@@ -1,0 +1,44 @@
+name: PR tests
+
+# ============================================================
+# PR tests — the exam BEFORE merging (合并之前先考试)
+#
+# nightly.yml runs every test every night, against the live app.
+# This workflow is different: it runs on every Pull Request,
+# fast, so broken code is caught BEFORE it lands on main.
+# Red check = don't merge. Green check = safe to merge.
+# ============================================================
+
+on:
+  pull_request:            # opened / updated / reopened — every PR
+  push:
+    branches: [main]       # also re-check main right after a merge
+
+jobs:
+  test:
+    runs-on: ubuntu-latest   # a fresh cloud computer, every run
+    steps:
+      # 1. Download the PR's code onto that computer
+      - uses: actions/checkout@v4
+
+      # 2. Install Python 3.12 (same version the app runs on)
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # 3. Install the app's packages, plus pytest (the examiner)
+      - name: Install dependencies
+        run: pip install -r requirements.txt pytest
+
+      # 4. Run ONLY the fast unit tests:
+      #      tests/test_chatbot.py — chunks, retrieval, triage
+      #      tests/test_tools.py   — the order-lookup tool
+      #    NOT tests/test_ui.py: that one drives a real browser
+      #    against the live app — nightly.yml already covers it,
+      #    and it is far too slow to gate a PR on.
+      #
+      #    Two tests need a live GEMINI_API_KEY. No key is set here,
+      #    so they SKIP themselves (skipped, not failed) and CI
+      #    stays green. No secrets are used in this workflow.
+      - name: Run unit tests
+        run: pytest tests/test_chatbot.py tests/test_tools.py -v
