@@ -8,6 +8,7 @@ import retrieval
 from retrieval import CHUNKS_DIR, CHUNKS_PATH, find_relevant
 from triage import classify_issue
 from store_config import get_store_config, resolve_team_email, save_store_config
+from tools import answer_with_tools
 from crawler import crawl, chunk as chunk_text, slug, store_id_for_url
 
 client = OpenAI(
@@ -101,7 +102,13 @@ if q:
     st.session_state.messages.append({"role": "user", "content": q})
     with st.chat_message("user"):
         st.write(q)
-    a = answer(q, store_id=store_id, site_name=site_name)
+    # Tool path first: if the question is about a specific order, the
+    # model may call lookup_order (tools.py) and answer from live data.
+    # answer_with_tools returns None for everything else, and then the
+    # normal RAG policy path below runs exactly as before.
+    a = answer_with_tools(q, client, site_name=site_name)
+    if a is None:
+        a = answer(q, store_id=store_id, site_name=site_name)
     st.session_state.messages.append({"role": "assistant", "content": a})
     with st.chat_message("assistant"):
         st.write(a)
