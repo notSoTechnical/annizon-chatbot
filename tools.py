@@ -18,6 +18,12 @@ dict for a real API call.
 """
 import json
 
+# The store's tracking page (Shopify + the 17TRACK app). Customers paste
+# a tracking number there and see live delivery progress. We hand this
+# link out with every order answer: it is where "live tracking" happens,
+# and it is the rescue path when we can't find someone's order.
+TRACKING_PAGE_URL = "https://annizon.com/apps/17TRACK"
+
 # ---------------------------------------------------------------------------
 # DEMO DATA — fake orders so the demo works with no Shopify connection.
 # A real version would fetch this from the Shopify API instead.
@@ -53,6 +59,8 @@ def lookup_order(order_id):
     Found   -> {"found": True, "order_id": ..., "status": ..., ...}
     Missing -> {"found": False, ...} with a polite message the model
     can pass on (or rephrase) instead of inventing a status.
+    Both carry "tracking_page": the link the customer can open to see
+    live tracking (or to search by tracking number when we can't help).
     """
     key = str(order_id).strip().upper()
     order = MOCK_ORDERS.get(key)
@@ -60,12 +68,13 @@ def lookup_order(order_id):
         return {
             "found": False,
             "order_id": key,
+            "tracking_page": TRACKING_PAGE_URL,
             "message": (
                 "We couldn't find an order with that id. Please double-check "
                 "the order id in your confirmation email — it looks like 'A1001'."
             ),
         }
-    return {"found": True, "order_id": key, **order}
+    return {"found": True, "order_id": key, "tracking_page": TRACKING_PAGE_URL, **order}
 
 
 # The tool LIST we hand to the model (step 1 of the loop). This is just a
@@ -78,7 +87,10 @@ ORDER_TOOLS = [
             "description": (
                 "Look up the delivery status of a customer's order. "
                 "Use this when the customer asks where their order/package "
-                "is, or about tracking or delivery of a specific order."
+                "is, or about tracking or delivery of a specific order. "
+                "The result includes a tracking_page link: always share "
+                "that link in your answer so the customer can follow "
+                "live tracking on the store's tracking page."
             ),
             "parameters": {
                 "type": "object",
@@ -113,7 +125,12 @@ def answer_with_tools(question, client, site_name="Annizon"):
                 "If the customer asks about a specific order or package, "
                 "use the lookup_order tool to check it. After the tool "
                 "answers, report ONLY what the tool returned — never "
-                "invent a status, carrier, or delivery date."
+                "invent a status, carrier, or delivery date. "
+                f"Always give the customer the store's tracking page, "
+                f"{TRACKING_PAGE_URL}: when the order is found, share it "
+                "as the live-tracking link; when the order is not found "
+                "or the customer has no order number, point them to that "
+                "page to search with their tracking number."
             ),
         },
         {"role": "user", "content": question},

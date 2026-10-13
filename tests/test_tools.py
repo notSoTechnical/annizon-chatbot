@@ -20,6 +20,8 @@ def test_lookup_order_found():
     assert r["order_id"] == "A1001"
     assert r["tracking"], "shipped order should have a tracking number"
     assert r["carrier"], "shipped order should name a carrier"
+    # every answer carries the store's 17TRACK page for live tracking
+    assert r["tracking_page"] == "https://annizon.com/apps/17TRACK"
 
 
 def test_lookup_order_normalizes_input():
@@ -34,6 +36,9 @@ def test_lookup_order_not_found():
     r = lookup_order("ZZZ999")
     assert r["found"] is False
     assert "couldn't find" in r["message"]
+    # not found still points the customer at the tracking page, so they
+    # can search by tracking number themselves
+    assert r["tracking_page"] == "https://annizon.com/apps/17TRACK"
 
 
 def _message(content=None, tool_calls=None):
