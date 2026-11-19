@@ -15,6 +15,16 @@ client = OpenAI(
     api_key=os.environ["GEMINI_API_KEY"],
     base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
 )
+# retrieval.py reads the Gemini key from the ENVIRONMENT, but Streamlit
+# Cloud keeps secrets in st.secrets, NOT in os.environ - so without this
+# bridge the embedding retrieval silently died and every question fell
+# back to the weakest keyword matcher (shipping questions missed).
+try:
+    if not os.environ.get("GEMINI_API_KEY"):
+        os.environ["GEMINI_API_KEY"] = st.secrets["GEMINI_API_KEY"]
+except Exception:
+    pass
+
 
 # NOTE: the destination inbox now comes from triage.py (TEAMS + USE_TEAM_INBOXES),
 # so there is no hardcoded SUPPORT_EMAIL here anymore.

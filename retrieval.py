@@ -21,13 +21,15 @@ How it works:
 Needs GEMINI_API_KEY in the environment (same key the chatbot already uses).
 """
 import json
+import math
 import os
+import re
 from functools import lru_cache
 from pathlib import Path
 
 import requests
 
-EMBED_MODEL = "text-embedding-004"
+EMBED_MODEL = "gemini-embedding-001"  # text-embedding-004 was retired by Google
 EMBED_URL = (
     "https://generativelanguage.googleapis.com/v1beta"
     f"/models/{EMBED_MODEL}:embedContent"
@@ -133,12 +135,56 @@ def _local_scored(question, chunks, store_id="default"):
     return [(_dot(q_vec, v), c) for v, c in zip(vecs, chunks)]
 
 
+_STOPWORDS = {
+    "what", "is", "your", "the", "a", "an", "how", "long", "does", "do",
+    "can", "i", "me", "my", "to", "of", "for", "and", "or", "in", "on",
+    "it", "take", "takes",
+    # Every page in this corpus IS a policy, so "policy" names no page -
+    # left in, it made shipping questions match the privacy page, which
+    # repeats the word most.
+    "policy", "policies",
+}
+
+
+def _tokens(text):
+    """Lowercase word tokens with punctuation stripped (policy? -> policy)."""
+    return [w for w in re.findall(r"[a-z0-9]+", text.lower()) if w not in _STOPWORDS]
+
+
+def _stem(word):
+    """Crude stem: shipping / shipped / shipments all -> 'ship'.
+
+    Needed because the policy chunks say 'shipped' and 'shipments' while
+    customers ask about 'shipping' - exact-word matching scored the main
+    shipping chunk 0 and the bot answered 'I don't know'.
+    """
+    return word[:4] if len(word) > 5 else word
+
+
 def _keyword_scored(question, chunks):
-    """Old scorer, kept as the offline fallback."""
-    q_words = set(question.lower().split())
-    return [
-        (len(q_words & set(c["text"].lower().split())), c) for c in chunks
-    ]
+    """Old scorer, kept as the offline fallback.
+
+    Scores by how many of the question's meaningful word STEMS appear in
+    the chunk (counted with repetition, so a chunk that talks about
+    shipping five times beats one that mentions it once in passing).
+    """
+    q_stems = {_stem(w) for w in _tokens(question)}
+    # Rarity weighting (IDF-lite): a stem found in nearly every chunk
+    # ("policy" - privacy, terms and refund pages all repeat it) carries
+    # almost no signal, while a rare stem ("ship") identifies its page.
+    # Without this, "What is your shipping policy?" matched the privacy
+    # chunks, which say "policy" far more often than the shipping page.
+    chunk_stems = [[_stem(w) for w in _tokens(c["text"])] for c in chunks]
+    n = max(len(chunks), 1)
+    weights = {}
+    for s in q_stems:
+        df = sum(1 for stems in chunk_stems if s in stems)
+        weights[s] = math.log(1 + n / max(df, 1))
+    scored = []
+    for stems, c in zip(chunk_stems, chunks):
+        score = sum(weights[s] for s in stems if s in q_stems)
+        scored.append((score, c))
+    return scored
 
 
 def find_relevant(question, top_k=3, store_id="default"):
