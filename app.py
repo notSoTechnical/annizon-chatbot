@@ -48,7 +48,10 @@ def resolve_store_id(choice):
 
 
 def answer(question, store_id="default", site_name="Annizon"):
-    chunks = find_relevant(question, top_k=3, store_id=store_id)
+    # top_k=5, not 3: with 3, the return-policy question once pulled only
+    # later refund chunks and the answer lost the opening "30 days after
+    # receiving" line. Five excerpts keep the opening chunk in view.
+    chunks = find_relevant(question, top_k=5, store_id=store_id)
     context = "\n\n".join(c["text"] for c in chunks)
     resp = client.chat.completions.create(
         model="gemini-2.5-flash",
