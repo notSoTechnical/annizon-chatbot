@@ -93,6 +93,19 @@ st.title("Annizon 客服")
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
+# ---- Store picker: whose policies is this chat answering from? ----
+# NOTE: this must run BEFORE the chat block below. Streamlit reruns the
+# whole script top-to-bottom on every interaction, so when a visitor
+# submits a question, store_id/site_name have to be set before the chat
+# code uses them — defining them further down (as before) raised
+# NameError on every submitted question.
+with st.sidebar:
+    st.header("🏪 Current site")
+    store_choice = st.selectbox("Answering as", available_stores(), key="store_pick")
+    store_id = resolve_store_id(store_choice)
+    cfg_pick = get_store_config(store_id)
+    site_name = cfg_pick.get("store_name") or store_choice.replace("default (annizon.com)", "Annizon").replace("-", " ").title()
+
 for m in st.session_state.messages:
     with st.chat_message(m["role"]):
         st.write(m["content"])
@@ -126,13 +139,8 @@ with st.expander("📧 Still need help? Email a human"):
             st.error(msg)
 
 
-# ---- Store picker: whose policies is this chat answering from? ----
-with st.sidebar:
-    st.header("\U0001f3ea Current site")
-    store_choice = st.selectbox("Answering as", available_stores(), key="store_pick")
-    store_id = resolve_store_id(store_choice)
-    cfg_pick = get_store_config(store_id)
-    site_name = cfg_pick.get("store_name") or store_choice.replace("default (annizon.com)", "Annizon").replace("-", " ").title()
+# (The "Current site" store picker lives near the top of this file now -
+# it has to run before the chat block. See the note there.)
 
 # ---- Merchant onboarding: enter a URL, get a chatbot (password-gated) ----
 with st.sidebar:
